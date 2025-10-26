@@ -11,7 +11,7 @@ const EventPromptForm = ({ onGenerate, isGenerating, defaultEventType }) => {
   const [isValidating, setIsValidating] = useState(false);
 
   React.useEffect(() => {
-    if (defaultEventType && !eventType) {
+    if (defaultEventType) {
       setEventType(defaultEventType);
     }
   }, [defaultEventType]);
@@ -86,11 +86,71 @@ const EventPromptForm = ({ onGenerate, isGenerating, defaultEventType }) => {
     }
   };
 
-  const examplePrompts = [
-    "Plan a tech startup product launch for 200 attendees with networking sessions and live demos",
-    "Organize a sustainable wedding celebration for 150 guests with outdoor ceremony and eco-friendly catering",
-    "Create a corporate annual conference with keynote speakers, breakout sessions, and team building activities"
-  ];
+  const examplePromptsByType = {
+    'Corporate Conference': [
+      "Plan a tech startup product launch for 200 attendees with networking sessions and live demos",
+      "Create a corporate annual conference with keynote speakers, breakout sessions, and team building activities",
+      "Organize a leadership summit for 150 executives with panel discussions and executive dinner"
+    ],
+    'Wedding Celebration': [
+      "Organize a sustainable wedding celebration for 150 guests with outdoor ceremony and eco-friendly catering",
+      "Plan a beach wedding for 100 guests with cocktail hour, dinner reception, and live band entertainment",
+      "Create a traditional Indian wedding with mehendi, sangeet, and reception ceremonies for 300 guests"
+    ],
+    'Birthday Party': [
+      "Plan a milestone 50th birthday celebration for 80 guests with themed decorations and live entertainment",
+      "Organize a kids' birthday party for 30 children with games, activities, and birthday cake ceremony",
+      "Create an adult birthday celebration with cocktail party, DJ, and midnight cake cutting for 60 guests"
+    ],
+    'Product Launch': [
+      "Plan a product launch event for 250 attendees with product demos, media coverage, and networking reception",
+      "Organize a tech gadget launch with hands-on demos, influencer meet-and-greet, and cocktail reception for 200 people",
+      "Create a fashion line launch event with runway show, celebrity appearances, and after-party for 150 guests"
+    ],
+    'Academic Seminar': [
+      "Organize a research symposium for 100 academics with paper presentations, poster sessions, and networking lunch",
+      "Plan an educational workshop for 50 students with lectures, hands-on activities, and certification ceremony",
+      "Create a conference for 200 educators with keynote speeches, breakout sessions, and panel discussions"
+    ],
+    'Networking Event': [
+      "Plan a business networking mixer for 100 professionals with speed networking, refreshments, and keynote speaker",
+      "Organize an industry meetup for 75 professionals with presentations, panel discussion, and networking hour",
+      "Create a career fair for 200 job seekers with company booths, resume reviews, and networking sessions"
+    ],
+    'Charity Fundraiser': [
+      "Plan a charity gala for 150 donors with silent auction, dinner, and entertainment to raise funds for education",
+      "Organize a charity run for 300 participants with registration, race, awards ceremony, and sponsor booths",
+      "Create a charity concert for 500 attendees with live performances, donation drives, and awareness campaigns"
+    ],
+    'Music Concert': [
+      "Plan a rock concert for 1000 fans with opening acts, main performance, and VIP meet-and-greet section",
+      "Organize a classical music evening for 200 attendees with orchestra performance and cocktail reception",
+      "Create a music festival for 2000 people with multiple stages, food vendors, and camping facilities"
+    ],
+    'Art Exhibition': [
+      "Plan an art gallery opening for 100 guests with artist meet-and-greet, wine tasting, and guided tours",
+      "Organize a contemporary art exhibition for 150 visitors with interactive installations and artist talks",
+      "Create a photography exhibition for 80 attendees with photo displays, artist Q&A, and networking reception"
+    ],
+    'Sports Tournament': [
+      "Plan a corporate cricket tournament for 200 participants with matches, awards ceremony, and closing dinner",
+      "Organize a football league for 150 players with multiple matches, refreshments, and trophy presentation",
+      "Create a sports day for 300 participants with various games, competitions, and medal ceremonies"
+    ]
+  };
+
+  const getExamplePrompts = () => {
+    if (eventType && examplePromptsByType[eventType]) {
+      return examplePromptsByType[eventType];
+    }
+    return [
+      "Plan a tech startup product launch for 200 attendees with networking sessions and live demos",
+      "Organize a sustainable wedding celebration for 150 guests with outdoor ceremony and eco-friendly catering",
+      "Create a corporate annual conference with keynote speakers, breakout sessions, and team building activities"
+    ];
+  };
+
+  const examplePrompts = getExamplePrompts();
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">

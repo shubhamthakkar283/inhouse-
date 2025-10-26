@@ -8,7 +8,8 @@ import PlanActions from './components/PlanActions';
 import ProgressTracker from './components/ProgressTracker';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
-import { preferencesService } from '../../services/preferencesService';
+import { eventPreferencesService } from '../../services/eventPreferencesService';
+import { supabase } from '../../lib/supabaseClient';
 
 const EventPlanDetails = () => {
   const [eventData, setEventData] = useState(null);
@@ -36,30 +37,51 @@ const EventPlanDetails = () => {
       setIsLoading(true);
 
       try {
-        const preferences = await preferencesService.getLatestPreferences();
+        const preferences = await eventPreferencesService.getLatestPreferences();
 
-        const savedEventData = localStorage.getItem('eventPlanningData');
-        let eventDataToUse = null;
+        const { data: latestEvent, error: eventError } = await supabase
+          .from('events')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (savedEventData) {
-          try {
-            eventDataToUse = JSON.parse(savedEventData);
-          } catch (parseError) {
-            console.error('Error parsing saved event data:', parseError);
-            localStorage.removeItem('eventPlanningData');
+        if (eventError && eventError.code !== 'PGRST116') {
+          console.error('Error fetching event:', eventError);
+        }
+
+        let eventDataToUse = latestEvent;
+        let aiGeneratedPlan = null;
+
+        if (latestEvent) {
+          const { data: aiContent, error: aiError } = await supabase
+            .from('ai_generated_content')
+            .select('*')
+            .eq('event_id', latestEvent.id)
+            .eq('content_type', 'event_plan')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (aiError && aiError.code !== 'PGRST116') {
+            console.error('Error fetching AI content:', aiError);
+          }
+
+          if (aiContent) {
+            aiGeneratedPlan = aiContent.generated_content;
           }
         }
 
         const mockEventData = {
           id: eventDataToUse?.id || 'evt_001',
-          name: eventDataToUse?.eventType || preferences?.event_type || 'Annual Tech Conference 2025',
-          date: preferences?.event_date || '2025-03-15',
-          time: preferences?.event_time || '09:00',
-          location: preferences?.venue ? getVenueName(preferences.venue) : 'Grand Convention Center, San Francisco',
-          attendees: preferences?.number_of_people || 500,
+          name: eventDataToUse?.event_name || eventDataToUse?.event_type || preferences?.eventType || 'Annual Tech Conference 2025',
+          date: eventDataToUse?.date || preferences?.eventDate || '2025-03-15',
+          time: eventDataToUse?.time || preferences?.eventTime || '09:00',
+          location: eventDataToUse?.location || (preferences?.venue ? getVenueName(preferences.venue) : 'Grand Convention Center, San Francisco'),
+          attendees: eventDataToUse?.audience_size || preferences?.numberOfPeople || 500,
           budget: preferences?.budget || 75000,
           status: 'planning',
-          description: eventDataToUse?.prompt || 'A comprehensive technology conference featuring industry leaders and innovative solutions.',
+          description: eventDataToUse?.description || 'A comprehensive technology conference featuring industry leaders and innovative solutions.',
           contacts: [
             {
               name: 'Sarah Johnson',
@@ -82,20 +104,37 @@ const EventPlanDetails = () => {
           ]
         };
 
-        const mockTimelineData = [
-          {
-            id: 'tl_001',
-            title: 'Venue Setup & Registration',
-            type: 'setup',
-            startTime: '07:00',
-            duration: 120,
-            location: 'Main Hall',
-            attendees: 10,
-            description: 'Complete venue setup including registration desks, signage, and technical equipment testing.',
-            resources: ['Registration desks', 'Welcome banners', 'Audio/Visual equipment', 'Name badges', 'Welcome packets'],
-            assignedTo: ['Setup Team', 'Registration Staff'],
-            notes: 'Ensure all technical equipment is tested 30 minutes before event start.'
-          },
+        let mockTimelineData = [];
+
+        if (aiGeneratedPlan && aiGeneratedPlan.timeline) {
+          mockTimelineData = aiGeneratedPlan.timeline.map((item, index) => ({
+            id: `tl_${index + 1}`,
+            title: item.activity || item.title || 'Activity',
+            type: 'presentation',
+            startTime: item.time || '09:00',
+            duration: parseInt(item.duration) || 60,
+            location: item.location || 'Main Hall',
+            attendees: item.attendees || 50,
+            description: item.description || item.activity || '',
+            resources: item.resources || [],
+            assignedTo: item.assignedTo || [],
+            notes: item.notes || ''
+          }));
+        } else {
+          mockTimelineData = [
+            {
+              id: 'tl_001',
+              title: 'Venue Setup & Registration',
+              type: 'setup',
+              startTime: '07:00',
+              duration: 120,
+              location: 'Main Hall',
+              attendees: 10,
+              description: 'Complete venue setup including registration desks, signage, and technical equipment testing.',
+              resources: ['Registration desks', 'Welcome banners', 'Audio/Visual equipment', 'Name badges', 'Welcome packets'],
+              assignedTo: ['Setup Team', 'Registration Staff'],
+              notes: 'Ensure all technical equipment is tested 30 minutes before event start.'
+            },
           {
             id: 'tl_002',
             title: 'Opening Keynote',
@@ -186,8 +225,8 @@ const EventPlanDetails = () => {
             resources: ['Cleaning supplies', 'Storage containers', 'Transportation'],
             assignedTo: ['Cleanup Crew', 'Equipment Team'],
             notes: 'Coordinate with venue management for final inspection.'
-          }
-        ];
+          }];
+        }
 
         const mockProgressData = {
           phases: [

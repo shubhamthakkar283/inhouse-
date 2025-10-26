@@ -97,12 +97,93 @@ const EventPlanningDashboard = () => {
 
     const loadEvents = async () => {
       try {
-        const events = await eventService.getAllEvents();
-        if (isMounted && events && events.length > 0) {
-          const latestEvent = events[0];
-          setEventData(latestEvent);
-          setHasGeneratedContent(true);
-          setGeneratedContent(mockGeneratedContent);
+        const { data: latestEvent, error: eventError } = await supabase
+          .from('events')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (eventError && eventError.code !== 'PGRST116') {
+          console.error('Error fetching event:', eventError);
+          return;
+        }
+
+        if (isMounted && latestEvent) {
+          const { data: aiContent, error: aiError } = await supabase
+            .from('ai_generated_content')
+            .select('*')
+            .eq('event_id', latestEvent.id)
+            .eq('content_type', 'event_plan')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (aiError && aiError.code !== 'PGRST116') {
+            console.error('Error fetching AI content:', aiError);
+          }
+
+          if (aiContent && aiContent.generated_content) {
+            const eventPlan = aiContent.generated_content;
+            const generatedContentFromAI = [
+              {
+                id: 'event-plan',
+                title: 'Event Timeline',
+                description: 'AI-generated schedule and agenda',
+                icon: 'Calendar',
+                status: 'completed',
+                progress: 100,
+                lastUpdated: aiContent.created_at,
+                items: eventPlan.timeline?.slice(0, 5)?.map(t => `${t.time} - ${t.activity}`) || []
+              },
+              {
+                id: 'task-list',
+                title: 'Task Management',
+                description: 'AI-generated action items',
+                icon: 'CheckSquare',
+                status: 'in-progress',
+                progress: 75,
+                lastUpdated: aiContent.created_at,
+                items: eventPlan.tasks?.slice(0, 5)?.map(t => t.task) || []
+              },
+              {
+                id: 'budget',
+                title: 'Budget Estimate',
+                description: 'AI-generated cost breakdown',
+                icon: 'IndianRupee',
+                status: 'completed',
+                progress: 100,
+                lastUpdated: aiContent.created_at,
+                items: eventPlan.budget ? [
+                  `Venue: ₹${eventPlan.budget.venue?.toLocaleString()}`,
+                  `Catering: ₹${eventPlan.budget.catering?.toLocaleString()}`,
+                  `Marketing: ₹${eventPlan.budget.marketing?.toLocaleString()}`,
+                  `Equipment: ₹${eventPlan.budget.equipment?.toLocaleString()}`,
+                  `Total: ₹${Object.values(eventPlan.budget).reduce((a, b) => a + b, 0).toLocaleString()}`
+                ] : []
+              },
+              {
+                id: 'marketing',
+                title: 'Marketing Materials',
+                description: 'AI-powered promotional content',
+                icon: 'Megaphone',
+                status: 'in-progress',
+                progress: 60,
+                lastUpdated: aiContent.created_at,
+                items: [
+                  'Event poster design',
+                  'Email invitation template',
+                  'Social media captions',
+                  'LinkedIn event page',
+                  'Registration landing page'
+                ]
+              }
+            ];
+
+            setEventData(latestEvent);
+            setGeneratedContent(generatedContentFromAI);
+            setHasGeneratedContent(true);
+          }
         }
       } catch (error) {
         console.error('Error loading events:', error);
@@ -145,17 +226,21 @@ const EventPlanningDashboard = () => {
         duration: formData.duration
       });
 
-      const { data: aiContent } = await supabase
+      const { data: aiContent, error: aiError } = await supabase
         .from('ai_generated_content')
         .insert({
           event_id: savedEvent.id,
           content_type: 'event_plan',
           prompt: formData.prompt || formData.description,
           generated_content: eventPlan,
-          metadata: { eventType: formData.eventType }
+          metadata: { eventType: formData.eventType, timestamp: new Date().toISOString() }
         })
         .select()
         .maybeSingle();
+
+      if (aiError) {
+        console.error('Error saving AI content:', aiError);
+      }
 
       const generatedContentFromAI = [
         {
@@ -272,8 +357,8 @@ const EventPlanningDashboard = () => {
 
   const handlePreferencesLoad = (loadedData) => {
     console.log('Preferences loaded:', loadedData);
-    if (loadedData?.event_type) {
-      setSelectedEventType(loadedData.event_type);
+    if (loadedData?.eventType) {
+      setSelectedEventType(loadedData.eventType);
     }
   };
 

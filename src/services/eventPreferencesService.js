@@ -14,13 +14,15 @@ export const eventPreferencesService = {
       let result;
       if (existingPreferences) {
         const { data, error } = await supabase
-          .from('event_preferences')
+          .from('user_preferences')
           .update({
+            event_type: preferences.eventType,
             venue: preferences.venue,
             number_of_people: preferences.numberOfPeople,
             budget: preferences.budget,
             event_date: preferences.eventDate,
             event_time: preferences.eventTime,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', existingPreferences.id)
           .select()
@@ -30,9 +32,10 @@ export const eventPreferencesService = {
         result = data;
       } else {
         const { data, error } = await supabase
-          .from('event_preferences')
+          .from('user_preferences')
           .insert({
             user_id: user.id,
+            event_type: preferences.eventType,
             venue: preferences.venue,
             number_of_people: preferences.numberOfPeople,
             budget: preferences.budget,
@@ -62,7 +65,7 @@ export const eventPreferencesService = {
       }
 
       const { data, error } = await supabase
-        .from('event_preferences')
+        .from('user_preferences')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
@@ -79,6 +82,7 @@ export const eventPreferencesService = {
 
       return {
         id: data.id,
+        eventType: data.event_type,
         venue: data.venue,
         numberOfPeople: data.number_of_people,
         budget: data.budget,
@@ -102,7 +106,7 @@ export const eventPreferencesService = {
       }
 
       const { data, error } = await supabase
-        .from('event_preferences')
+        .from('user_preferences')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -111,6 +115,7 @@ export const eventPreferencesService = {
 
       return data.map(item => ({
         id: item.id,
+        eventType: item.event_type,
         venue: item.venue,
         numberOfPeople: item.number_of_people,
         budget: item.budget,
@@ -128,7 +133,7 @@ export const eventPreferencesService = {
   async deletePreferences(id) {
     try {
       const { error } = await supabase
-        .from('event_preferences')
+        .from('user_preferences')
         .delete()
         .eq('id', id);
 

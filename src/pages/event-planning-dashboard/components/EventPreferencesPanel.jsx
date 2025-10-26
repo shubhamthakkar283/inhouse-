@@ -53,11 +53,11 @@ const EventPreferencesPanel = ({ onSave, onLoad, onEventTypeChange }) => {
       if (savedPreferences) {
         const loadedPrefs = {
           venue: savedPreferences.venue || '',
-          numberOfPeople: savedPreferences.number_of_people || 50,
+          numberOfPeople: savedPreferences.numberOfPeople || 50,
           budget: savedPreferences.budget || 50000,
-          eventDate: savedPreferences.event_date || '',
-          eventTime: savedPreferences.event_time || '',
-          eventType: savedPreferences.event_type || '',
+          eventDate: savedPreferences.eventDate || '',
+          eventTime: savedPreferences.eventTime || '',
+          eventType: savedPreferences.eventType || '',
         };
         setPreferences(loadedPrefs);
         if (onLoad) onLoad(savedPreferences);
