@@ -69,6 +69,7 @@
     "build": "vite build --sourcemap",
     "serve": "vite preview",
     "setup": "node server/setup.js",
+    "migrate": "node server/migrate.js",
     "server": "node server/server.js",
     "dev:all": "concurrently \"npm run start\" \"npm run server\""
   },

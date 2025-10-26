@@ -52,6 +52,7 @@ const setupDatabase = () => {
         audience_size INTEGER DEFAULT 0,
         duration INTEGER DEFAULT 4,
         status TEXT DEFAULT 'planning',
+        ai_generated_content TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

@@ -72,6 +72,7 @@ class EventService {
         const newEvent = {
           id: Date.now().toString(),
           ...eventData,
+          ai_generated_content: eventData.ai_generated_content || null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -88,6 +89,7 @@ class EventService {
       const newEvent = {
         id: Date.now().toString(),
         ...eventData,
+        ai_generated_content: eventData.ai_generated_content || null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };

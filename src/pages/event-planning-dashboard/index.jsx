@@ -97,34 +97,38 @@ const EventPlanningDashboard = () => {
 
     const loadEvents = async () => {
       try {
-        const { data: latestEvent, error: eventError } = await supabase
-          .from('events')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const events = await eventService.getAllEvents();
+        const latestEvent = events && events.length > 0 ? events[0] : null;
 
-        if (eventError && eventError.code !== 'PGRST116') {
-          console.error('Error fetching event:', eventError);
+        if (!latestEvent) {
           return;
         }
 
         if (isMounted && latestEvent) {
-          const { data: aiContent, error: aiError } = await supabase
-            .from('ai_generated_content')
-            .select('*')
-            .eq('event_id', latestEvent.id)
-            .eq('content_type', 'event_plan')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          let eventPlan = null;
 
-          if (aiError && aiError.code !== 'PGRST116') {
-            console.error('Error fetching AI content:', aiError);
+          if (latestEvent.ai_generated_content) {
+            eventPlan = latestEvent.ai_generated_content;
+          } else {
+            const { data: aiContent, error: aiError } = await supabase
+              .from('ai_generated_content')
+              .select('*')
+              .eq('event_id', latestEvent.id)
+              .eq('content_type', 'event_plan')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (aiError && aiError.code !== 'PGRST116') {
+              console.error('Error fetching AI content:', aiError);
+            }
+
+            if (aiContent && aiContent.generated_content) {
+              eventPlan = aiContent.generated_content;
+            }
           }
 
-          if (aiContent && aiContent.generated_content) {
-            const eventPlan = aiContent.generated_content;
+          if (eventPlan) {
             const generatedContentFromAI = [
               {
                 id: 'event-plan',
@@ -223,7 +227,8 @@ const EventPlanningDashboard = () => {
         city: formData.city,
         venueType: formData.venueType,
         audienceSize: formData.audienceSize,
-        duration: formData.duration
+        duration: formData.duration,
+        ai_generated_content: eventPlan
       });
 
       const { data: aiContent, error: aiError } = await supabase

@@ -9,6 +9,7 @@ import ProgressTracker from './components/ProgressTracker';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import { eventPreferencesService } from '../../services/eventPreferencesService';
+import { eventService } from '../../services/eventService';
 import { supabase } from '../../lib/supabaseClient';
 
 const EventPlanDetails = () => {
@@ -39,21 +40,15 @@ const EventPlanDetails = () => {
       try {
         const preferences = await eventPreferencesService.getLatestPreferences();
 
-        const { data: latestEvent, error: eventError } = await supabase
-          .from('events')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (eventError && eventError.code !== 'PGRST116') {
-          console.error('Error fetching event:', eventError);
-        }
+        const events = await eventService.getAllEvents();
+        const latestEvent = events && events.length > 0 ? events[0] : null;
 
         let eventDataToUse = latestEvent;
         let aiGeneratedPlan = null;
 
-        if (latestEvent) {
+        if (latestEvent && latestEvent.ai_generated_content) {
+          aiGeneratedPlan = latestEvent.ai_generated_content;
+        } else if (latestEvent) {
           const { data: aiContent, error: aiError } = await supabase
             .from('ai_generated_content')
             .select('*')
