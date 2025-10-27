@@ -38,10 +38,7 @@ const EventPlanDetails = () => {
       setIsLoading(true);
 
       try {
-        const preferences = await eventPreferencesService.getLatestPreferences();
-
-        const events = await eventService.getAllEvents();
-        const latestEvent = events && events.length > 0 ? events[0] : null;
+        const { event: latestEvent, preference: preferences } = await eventService.getEventWithPreferences();
 
         let eventDataToUse = latestEvent;
         let aiGeneratedPlan = null;
@@ -67,16 +64,23 @@ const EventPlanDetails = () => {
           }
         }
 
+        const venueName = preferences?.venue ? getVenueName(preferences.venue) : null;
+        const eventType = preferences?.event_type || eventDataToUse?.event_type;
+        const eventDate = preferences?.event_date || eventDataToUse?.date;
+        const eventTime = preferences?.event_time || eventDataToUse?.time;
+        const numberOfPeople = preferences?.number_of_people || eventDataToUse?.audience_size;
+        const budgetAmount = preferences?.budget || 75000;
+
         const mockEventData = {
           id: eventDataToUse?.id || 'evt_001',
-          name: eventDataToUse?.event_name || eventDataToUse?.event_type || preferences?.eventType || 'Annual Tech Conference 2025',
-          date: eventDataToUse?.date || preferences?.eventDate || '2025-03-15',
-          time: eventDataToUse?.time || preferences?.eventTime || '09:00',
-          location: eventDataToUse?.location || (preferences?.venue ? getVenueName(preferences.venue) : 'Grand Convention Center, San Francisco'),
-          attendees: eventDataToUse?.audience_size || preferences?.numberOfPeople || 500,
-          budget: preferences?.budget || 75000,
+          name: eventDataToUse?.event_name || eventType || 'Untitled Event',
+          date: eventDate || '2025-03-15',
+          time: eventTime || '09:00',
+          location: eventDataToUse?.location || venueName || 'TBD',
+          attendees: numberOfPeople || 50,
+          budget: budgetAmount,
           status: 'planning',
-          description: eventDataToUse?.description || 'A comprehensive technology conference featuring industry leaders and innovative solutions.',
+          description: eventDataToUse?.description || `Event planning for ${eventType || 'special occasion'}`,
           contacts: [
             {
               name: 'Sarah Johnson',

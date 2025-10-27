@@ -62,6 +62,26 @@ const setupDatabase = () => {
           reject(err);
         } else {
           console.log('✓ Events table created');
+
+          db.all("PRAGMA table_info(events)", [], (err, columns) => {
+            if (err) {
+              console.error('✗ Error checking events table columns:', err.message);
+              return;
+            }
+
+            const hasAiGeneratedContent = columns.some(col => col.name === 'ai_generated_content');
+
+            if (!hasAiGeneratedContent) {
+              console.log('→ Adding ai_generated_content column to events table...');
+              db.run(`ALTER TABLE events ADD COLUMN ai_generated_content TEXT`, (err) => {
+                if (err) {
+                  console.error('✗ Error adding ai_generated_content column:', err.message);
+                } else {
+                  console.log('✓ ai_generated_content column added successfully');
+                }
+              });
+            }
+          });
         }
       });
 

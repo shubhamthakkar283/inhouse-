@@ -157,6 +157,31 @@ class EventService {
       throw error;
     }
   }
+
+  async getEventWithPreferences(userId = 1) {
+    try {
+      await this.checkBackendConnection();
+
+      if (this.useBackend) {
+        const response = await axios.get(`${API_BASE_URL}/events/with-preferences`, {
+          params: { user_id: userId }
+        });
+        return response.data.data;
+      } else {
+        const events = await this.getAllEvents();
+        const preferencesCache = localStorage.getItem('event_preferences_cache');
+        const preference = preferencesCache ? JSON.parse(preferencesCache) : null;
+
+        return {
+          event: events.length > 0 ? events[0] : null,
+          preference
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching event with preferences:', error);
+      return { event: null, preference: null };
+    }
+  }
 }
 
 export const eventService = new EventService();
