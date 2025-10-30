@@ -20,32 +20,21 @@ export const AuthProvider = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
-        const storedUser = sessionStorage.getItem('user');
-        const localUser = localStorage.getItem('user');
+        const { data: { session } } = await supabase.auth.getSession();
 
-        if (storedUser && mounted) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-          } catch (parseError) {
-            console.error('Error parsing stored user:', parseError);
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            setUser(null);
-          }
-        } else if (localUser && mounted) {
-          try {
-            const parsedUser = JSON.parse(localUser);
-            setUser(parsedUser);
-            sessionStorage.setItem('user', localUser);
-          } catch (parseError) {
-            console.error('Error parsing stored user:', parseError);
-            localStorage.removeItem('user');
-            setUser(null);
-          }
+        if (session?.user && mounted) {
+          setUser(session.user);
+          const userJSON = JSON.stringify(session.user);
+          localStorage.setItem('user', userJSON);
+          sessionStorage.setItem('user', userJSON);
+        } else if (mounted) {
+          setUser(null);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -55,100 +44,89 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+
+      if (session?.user) {
+        setUser(session.user);
+        const userJSON = JSON.stringify(session.user);
+        localStorage.setItem('user', userJSON);
+        sessionStorage.setItem('user', userJSON);
+      } else {
+        setUser(null);
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
+      }
+    });
+
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
   const signUp = async (email, password, fullName) => {
     try {
-      const response = await fetch('http://localhost:5000/api/users/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          full_name: fullName
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Registration failed');
-      }
-
-      const userData = {
-        user: {
-          id: result.data.id,
-          email: result.data.email,
-          user_metadata: {
-            full_name: result.data.full_name
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName
           }
         }
-      };
+      });
 
-      setUser(userData.user);
-      const userJSON = JSON.stringify(userData.user);
-      localStorage.setItem('user', userJSON);
-      sessionStorage.setItem('user', userJSON);
+      if (error) {
+        return { data: null, error };
+      }
 
-      return { data: userData, error: null };
+      if (data.user) {
+        setUser(data.user);
+        const userJSON = JSON.stringify(data.user);
+        localStorage.setItem('user', userJSON);
+        sessionStorage.setItem('user', userJSON);
+      }
+
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, error: { message: error.message } };
     }
   };
 
   const signIn = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:5000/api/users/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Login failed');
+      if (error) {
+        return { data: null, error };
       }
 
-      const userData = {
-        user: {
-          id: result.data.id,
-          email: result.data.email,
-          user_metadata: {
-            full_name: result.data.full_name
-          }
-        }
-      };
+      if (data.user) {
+        setUser(data.user);
+        const userJSON = JSON.stringify(data.user);
+        localStorage.setItem('user', userJSON);
+        sessionStorage.setItem('user', userJSON);
+      }
 
-      setUser(userData.user);
-      const userJSON = JSON.stringify(userData.user);
-      localStorage.setItem('user', userJSON);
-      sessionStorage.setItem('user', userJSON);
-
-      return { data: userData, error: null };
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error };
+      return { data: null, error: { message: error.message } };
     }
   };
 
   const signOut = async () => {
     try {
+      await supabase.auth.signOut();
       setUser(null);
       localStorage.removeItem('user');
       sessionStorage.removeItem('user');
       return { error: null };
     } catch (error) {
-      return { error };
+      return { error: { message: error.message } };
     }
   };
 

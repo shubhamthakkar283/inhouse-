@@ -99,10 +99,9 @@ const Signup = () => {
       if (error) {
         setErrorMessage(error.message || 'Failed to create account. Please try again.');
       } else if (data?.user) {
-        await signOut();
-        setSuccessMessage('Account created successfully! Redirecting to login...');
+        setSuccessMessage('Account created successfully! Redirecting to dashboard...');
         setTimeout(() => {
-          navigate('/login', { replace: true });
+          navigate('/event-planning-dashboard', { replace: true });
         }, 1500);
       }
     } catch (error) {
