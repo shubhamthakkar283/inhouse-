@@ -108,7 +108,11 @@ const eventController = {
         preference_id
       } = req.body;
 
-      const safeEventStartTime = time ? normalizeTime(time) : null;
+      // Derive start time from provided time or AI timeline first item
+const aiFirstStart = (ai_generated_content && Array.isArray(ai_generated_content.timeline) && ai_generated_content.timeline.length > 0)
+  ? normalizeTime(ai_generated_content.timeline[0]?.time || ai_generated_content.timeline[0]?.startTime || '09:00')
+  : null;
+const safeEventStartTime = time ? normalizeTime(time) : aiFirstStart;
 
       let processedAiContent = ai_generated_content;
 
@@ -187,7 +191,11 @@ const eventController = {
         ai_generated_content
       } = req.body;
 
-      const safeEventStartTime = time ? normalizeTime(time) : null;
+      // Derive start time from provided time or AI timeline first item
+const aiFirstStart = (ai_generated_content && Array.isArray(ai_generated_content.timeline) && ai_generated_content.timeline.length > 0)
+  ? normalizeTime(ai_generated_content.timeline[0]?.time || ai_generated_content.timeline[0]?.startTime || '09:00')
+  : null;
+const safeEventStartTime = time ? normalizeTime(time) : aiFirstStart;
 
       let processedAiContent = ai_generated_content;
 
@@ -268,43 +276,54 @@ const eventController = {
       let event = null;
       if (preference && preference.event_id) {
         event = await getQuery('SELECT * FROM events WHERE id = ?', [preference.event_id]);
+      }
 
-        if (event) {
-          if (event.time) {
-            event.time = normalizeTime(event.time);
-          }
+      // Fallback: if no linked event, return the latest event for this user
+      if (!event) {
+        event = await getQuery('SELECT * FROM events WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [userId]);
+      }
 
-          if (event.ai_generated_content) {
-            try {
-              event.ai_generated_content = JSON.parse(event.ai_generated_content);
+      if (event) {
+        if (event.time) {
+          event.time = normalizeTime(event.time);
+        }
 
-              if (event.ai_generated_content.timeline) {
-                // Normalize each item first
-                let normalizedTimeline = event.ai_generated_content.timeline.map(item => {
-                  const timeStr = item.time || item.startTime || '09:00';
-                  const normalizedTime = normalizeTime(timeStr);
+        if (event.ai_generated_content) {
+          try {
+            event.ai_generated_content = JSON.parse(event.ai_generated_content);
 
-                  let durationInMinutes = 60;
-                  if (item.duration) {
-                    durationInMinutes = parseDuration(item.duration);
-                  }
+            if (event.ai_generated_content.timeline) {
+              // Normalize each item first
+              let normalizedTimeline = event.ai_generated_content.timeline.map(item => {
+                const timeStr = item.time || item.startTime || '09:00';
+                const normalizedTime = normalizeTime(timeStr);
 
-                  return {
-                    ...item,
-                    time: normalizedTime,
-                    duration: durationInMinutes
-                  };
-                });
+                let durationInMinutes = 60;
+                if (item.duration) {
+                  durationInMinutes = parseDuration(item.duration);
+                }
 
-                // Align timeline start with user's preferred event time (or event's own time)
-                const desiredStart = preference?.event_time || event.time || '09:00';
-                normalizedTimeline = shiftTimelineToStart(normalizedTimeline, desiredStart);
+                return {
+                  ...item,
+                  time: normalizedTime,
+                  duration: durationInMinutes
+                };
+              });
 
-                event.ai_generated_content.timeline = normalizedTimeline;
-              }
-            } catch (e) {
-              console.error('Error parsing AI content:', e);
+              // Determine effective start: preference -> event -> AI first -> default
+              const aiFirst = (normalizedTimeline && normalizedTimeline.length > 0) ? normalizedTimeline[0].time : null;
+              const desiredStart = preference?.event_time || event.time || aiFirst || '09:00';
+
+              // Reflect effective start time back to event for frontend display
+              event.time = desiredStart;
+
+              // Align timeline start with the effective start time
+              normalizedTimeline = shiftTimelineToStart(normalizedTimeline, desiredStart);
+
+              event.ai_generated_content.timeline = normalizedTimeline;
             }
+          } catch (e) {
+            console.error('Error parsing AI content:', e);
           }
         }
       }
