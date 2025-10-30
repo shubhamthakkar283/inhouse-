@@ -1,60 +1,12 @@
 const { allQuery, getQuery, runQuery } = require('../database');
+const { normalizeTime: normalizeTimeUtil, parseDuration: parseDurationUtil, shiftTimelineToStart } = require('../utils/timeUtils');
 
 function normalizeTime(timeStr) {
-  if (!timeStr) return '09:00';
-
-  timeStr = timeStr.trim();
-
-  const time24Regex = /^(\d{1,2}):(\d{2})$/;
-  const match24 = timeStr.match(time24Regex);
-  if (match24) {
-    const hours = parseInt(match24[1], 10);
-    const minutes = match24[2];
-    return `${String(hours).padStart(2, '0')}:${minutes}`;
-  }
-
-  const time12Regex = /^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$/i;
-  const match12 = timeStr.match(time12Regex);
-  if (match12) {
-    let hours = parseInt(match12[1], 10);
-    const minutes = match12[2];
-    const period = match12[3].toUpperCase();
-
-    if (period === 'PM' && hours !== 12) {
-      hours += 12;
-    } else if (period === 'AM' && hours === 12) {
-      hours = 0;
-    }
-
-    return `${String(hours).padStart(2, '0')}:${minutes}`;
-  }
-
-  return '09:00';
+  return normalizeTimeUtil(timeStr || '09:00');
 }
 
 function parseDuration(durationStr) {
-  if (typeof durationStr === 'number') return durationStr;
-
-  if (!durationStr || typeof durationStr !== 'string') return 60;
-
-  durationStr = durationStr.trim().toLowerCase();
-
-  const hourRegex = /(\d+)\s*(?:hour|hr|h)/i;
-  const minuteRegex = /(\d+)\s*(?:minute|min|m)/i;
-
-  let totalMinutes = 0;
-
-  const hourMatch = durationStr.match(hourRegex);
-  if (hourMatch) {
-    totalMinutes += parseInt(hourMatch[1], 10) * 60;
-  }
-
-  const minuteMatch = durationStr.match(minuteRegex);
-  if (minuteMatch) {
-    totalMinutes += parseInt(minuteMatch[1], 10);
-  }
-
-  return totalMinutes > 0 ? totalMinutes : 60;
+  return parseDurationUtil(durationStr);
 }
 
 const eventController = {
@@ -156,40 +108,31 @@ const eventController = {
         preference_id
       } = req.body;
 
-      let processedAiContent = ai_generated_content;
-      let eventStartTime = time;
+      const safeEventStartTime = time ? normalizeTime(time) : null;
 
-      if (ai_generated_content && ai_generated_content.timeline) {
-        const firstActivityTime = ai_generated_content.timeline[0]?.time;
+      let processedAiContent = ai_generated_content;
+
+      if (ai_generated_content && Array.isArray(ai_generated_content.timeline)) {
+        // Normalize timeline items first
+        let normalizedTimeline = ai_generated_content.timeline.map((item) => {
+          const timeStr = item.time || item.startTime || '09:00';
+          const normalizedTime = normalizeTime(timeStr);
+          const durationInMinutes = parseDuration(item.duration);
+          return {
+            ...item,
+            time: normalizedTime,
+            duration: durationInMinutes
+          };
+        });
+
+        // If event has a start time, align the timeline start to it
+        if (safeEventStartTime) {
+          normalizedTimeline = shiftTimelineToStart(normalizedTimeline, safeEventStartTime);
+        }
 
         processedAiContent = {
           ...ai_generated_content,
-          timeline: ai_generated_content.timeline.map((item, index) => {
-            const timeStr = item.time || '09:00';
-            const normalizedTime = normalizeTime(timeStr);
-
-            let durationInMinutes = 60;
-            if (item.duration) {
-              durationInMinutes = parseDuration(item.duration);
-            }
-
-            if (index === 0 && eventStartTime && normalizedTime !== eventStartTime) {
-              const [eventHour, eventMin] = eventStartTime.split(':').map(Number);
-              const [activityHour, activityMin] = normalizedTime.split(':').map(Number);
-
-              const eventMinutes = eventHour * 60 + eventMin;
-              const activityMinutes = activityHour * 60 + activityMin;
-              const timeDiff = eventMinutes - activityMinutes;
-
-              processedAiContent.timelineOffset = timeDiff;
-            }
-
-            return {
-              ...item,
-              time: normalizedTime,
-              duration: durationInMinutes
-            };
-          })
+          timeline: normalizedTimeline
         };
       }
 
@@ -200,7 +143,7 @@ const eventController = {
           user_id, event_name, event_type, description, date, time,
           location, city, venue_type, audience_size, duration, status, ai_generated_content
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [user_id, event_name, event_type, description, date, time, location, city, venue_type, audience_size, duration, status, aiContentJson]
+        [user_id, event_name, event_type, description, date, safeEventStartTime, location, city, venue_type, audience_size, duration, status, aiContentJson]
       );
 
       if (preference_id) {
@@ -244,26 +187,29 @@ const eventController = {
         ai_generated_content
       } = req.body;
 
+      const safeEventStartTime = time ? normalizeTime(time) : null;
+
       let processedAiContent = ai_generated_content;
 
-      if (ai_generated_content && ai_generated_content.timeline) {
+      if (ai_generated_content && Array.isArray(ai_generated_content.timeline)) {
+        let normalizedTimeline = ai_generated_content.timeline.map((item) => {
+          const timeStr = item.time || item.startTime || '09:00';
+          const normalizedTime = normalizeTime(timeStr);
+          const durationInMinutes = parseDuration(item.duration);
+          return {
+            ...item,
+            time: normalizedTime,
+            duration: durationInMinutes
+          };
+        });
+
+        if (safeEventStartTime) {
+          normalizedTimeline = shiftTimelineToStart(normalizedTimeline, safeEventStartTime);
+        }
+
         processedAiContent = {
           ...ai_generated_content,
-          timeline: ai_generated_content.timeline.map(item => {
-            const timeStr = item.time || '09:00';
-            const normalizedTime = normalizeTime(timeStr);
-
-            let durationInMinutes = 60;
-            if (item.duration) {
-              durationInMinutes = parseDuration(item.duration);
-            }
-
-            return {
-              ...item,
-              time: normalizedTime,
-              duration: durationInMinutes
-            };
-          })
+          timeline: normalizedTimeline
         };
       }
 
@@ -275,7 +221,7 @@ const eventController = {
           location = ?, city = ?, venue_type = ?, audience_size = ?, duration = ?,
           status = ?, ai_generated_content = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`,
-        [event_name, event_type, description, date, time, location, city, venue_type, audience_size, duration, status, aiContentJson, req.params.id]
+        [event_name, event_type, description, date, safeEventStartTime, location, city, venue_type, audience_size, duration, status, aiContentJson, req.params.id]
       );
 
       const event = await getQuery('SELECT * FROM events WHERE id = ?', [req.params.id]);
@@ -314,33 +260,51 @@ const eventController = {
         [userId]
       );
 
+      // Normalize preference event_time for frontend consumption
+      if (preference && preference.event_time) {
+        preference.event_time = normalizeTime(preference.event_time);
+      }
+
       let event = null;
       if (preference && preference.event_id) {
         event = await getQuery('SELECT * FROM events WHERE id = ?', [preference.event_id]);
 
-        if (event && event.ai_generated_content) {
-          try {
-            event.ai_generated_content = JSON.parse(event.ai_generated_content);
+        if (event) {
+          if (event.time) {
+            event.time = normalizeTime(event.time);
+          }
 
-            if (event.ai_generated_content.timeline) {
-              event.ai_generated_content.timeline = event.ai_generated_content.timeline.map(item => {
-                const timeStr = item.time || '09:00';
-                const normalizedTime = normalizeTime(timeStr);
+          if (event.ai_generated_content) {
+            try {
+              event.ai_generated_content = JSON.parse(event.ai_generated_content);
 
-                let durationInMinutes = 60;
-                if (item.duration) {
-                  durationInMinutes = parseDuration(item.duration);
-                }
+              if (event.ai_generated_content.timeline) {
+                // Normalize each item first
+                let normalizedTimeline = event.ai_generated_content.timeline.map(item => {
+                  const timeStr = item.time || item.startTime || '09:00';
+                  const normalizedTime = normalizeTime(timeStr);
 
-                return {
-                  ...item,
-                  time: normalizedTime,
-                  duration: durationInMinutes
-                };
-              });
+                  let durationInMinutes = 60;
+                  if (item.duration) {
+                    durationInMinutes = parseDuration(item.duration);
+                  }
+
+                  return {
+                    ...item,
+                    time: normalizedTime,
+                    duration: durationInMinutes
+                  };
+                });
+
+                // Align timeline start with user's preferred event time (or event's own time)
+                const desiredStart = preference?.event_time || event.time || '09:00';
+                normalizedTimeline = shiftTimelineToStart(normalizedTimeline, desiredStart);
+
+                event.ai_generated_content.timeline = normalizedTimeline;
+              }
+            } catch (e) {
+              console.error('Error parsing AI content:', e);
             }
-          } catch (e) {
-            console.error('Error parsing AI content:', e);
           }
         }
       }

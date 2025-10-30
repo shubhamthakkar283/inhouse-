@@ -2,10 +2,13 @@ const express = require('express');
 const router = express.Router();
 const imageController = require('../controllers/imageController');
 
-router.get('/', imageController.getAllImages);
-router.get('/:id', imageController.getImageById);
-router.get('/event/:eventId', imageController.getImagesByEventId);
-router.post('/', imageController.createImage);
-router.delete('/:id', imageController.deleteImage);
+// Match frontend usage in src/services/imageService.js
+// - POST /api/images/generate
+// - POST /api/images/generate-multiple
+// - GET  /api/images/event/:eventId
+
+router.post('/generate', imageController.generateImage);
+router.post('/generate-multiple', imageController.generateMultipleImages);
+router.get('/event/:eventId', imageController.getEventImages);
 
 module.exports = router;

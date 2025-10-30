@@ -1,5 +1,5 @@
 const imageService = require('../services/imageService');
-const { runQuery, getQuery } = require('../database');
+const { runQuery, getQuery, allQuery } = require('../database');
 
 const imageController = {
   generateImage: async (req, res) => {
@@ -141,7 +141,7 @@ const imageController = {
     try {
       const { eventId } = req.params;
 
-      const images = await runQuery(
+      const images = await allQuery(
         'SELECT * FROM generated_images WHERE event_id = ? ORDER BY created_at DESC',
         [eventId]
       );
@@ -150,7 +150,7 @@ const imageController = {
         success: true,
         data: images.map(img => ({
           ...img,
-          metadata: JSON.parse(img.metadata || '{}')
+          metadata: (() => { try { return JSON.parse(img.metadata || '{}'); } catch { return {}; } })()
         }))
       });
     } catch (error) {
